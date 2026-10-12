@@ -1,0 +1,12 @@
+**/target/
+data/
+models/*.onnx
+models/*.partial
+models/*.sha256
+*.log
+.idea/
+*.iml
+.vscode/
+.DS_Store
+**/__pycache__/
+node_modules/
