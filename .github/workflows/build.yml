@@ -1,0 +1,67 @@
+name: Build and verify
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            java: '17'
+          - os: windows-latest
+            java: '25'
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven
+      - name: Compile, test and package
+        run: mvn -B -ntp clean verify
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Install video tools
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Prepare public test fixtures and verified model
+        shell: bash
+        run: |
+          mkdir -p models target/fixtures
+          curl --fail --location --retry 3 https://huggingface.co/onnx-community/YOLOv10/resolve/main/yolov10n.onnx -o models/yolov10n.onnx
+          echo 'a77dd863933f184a19e84361c64b788228a7c7dacc2c78939239a96ad3efca3b  models/yolov10n.onnx' | sha256sum --check
+          curl --fail --location --retry 3 https://raw.githubusercontent.com/ultralytics/ultralytics/main/ultralytics/assets/bus.jpg -o target/fixtures/bus.jpg
+          ffmpeg -v error -y -f lavfi -i color=c=black:s=640x360:r=10 -t 3 -c:v libx264 -pix_fmt yuv420p target/fixtures/blank.mp4
+          ffmpeg -v error -y -loop 1 -i target/fixtures/bus.jpg -t 3 -r 10 -c:v libx264 -pix_fmt yuv420p target/fixtures/people.mp4
+          echo "VIDEO_TEST_CLIP=$PWD/target/fixtures/blank.mp4" >> "$GITHUB_ENV"
+          echo "VIDEO_PEOPLE_CLIP=$PWD/target/fixtures/people.mp4" >> "$GITHUB_ENV"
+          echo "VIDEO_TEST_MODEL=$PWD/models/yolov10n.onnx" >> "$GITHUB_ENV"
+      - name: Native video and model tests
+        run: mvn -B -ntp verify
+      - name: Start and exercise complete application
+        shell: bash
+        run: |
+          java -jar videoanalysis-app/target/videoanalysis-app-0.1.0-SNAPSHOT.jar > target/app.log 2>&1 &
+          APP_PID=$!
+          trap 'kill "$APP_PID" 2>/dev/null || true' EXIT
+          python3 scripts/smoke-api.py
+      - name: Upload test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-evidence
+          path: |
+            **/target/surefire-reports/
+            target/app.log
