@@ -52,6 +52,7 @@ for attempt in range(120):
         break
     time.sleep(1)
 assert job["state"] == "COMPLETED", job
+assert job["rules"]["recordingStart"].endswith("+05:30"), job
 assert job["events"], job
 assert job["previewReady"]
 event = job["events"][0]

@@ -23,6 +23,12 @@ root. It exercises the real HTTP flow: upload, analysis, nonempty findings,
 review, JSON export, byte-range playback, cross-origin request rejection and
 session deletion. It needs VIDEO_PEOPLE_CLIP and the installed model.
 
+The browser smoke test then uploads a recording through the real UI, edits
+the monitoring area, runs a scheduled analysis, plays a finding, saves a
+review and downloads JSON. Desktop/narrow screenshots are CI artifacts.
+The timestamp regression check preserves the explicit +05:30 recording offset
+through JSON deserialization, rule evaluation and report serialization.
+
 GitHub Actions additionally compiles/packages on Windows/JDK 25. Native
 integration runs on Linux; verify FFmpeg and model loading on the user's
 Windows device before calling that deployment accepted.
